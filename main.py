@@ -1,12 +1,31 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
+from typing import Literal
 
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+
+
+class ReviewComment(BaseModel):
+    """Structured inline comment for an individual file/line."""
+
+    path: str
+    line: int | None = None
+    comment: str
+
+
+class ReviewOutput(BaseModel):
+    """Structured review summary emitted by the agent."""
+
+    decision: Literal["APPROVE", "REQUEST_CHANGES"]
+    summary: str
+    comments: list[ReviewComment] = Field(default_factory=list)
 
 
 class Settings(BaseSettings):
@@ -59,22 +78,26 @@ def run_agent() -> None:
 
     agent = Agent(
         model=model,
+        output_type=ReviewOutput,
         system_prompt=(
-            "You are an AI pull request reviewer. Provide concise, actionable "
-            "feedback on the diff you receive. Flag correctness and security "
-            "risks before nitpicks."
+            "You are an AI pull request reviewer for GitHub. Always decide if the diff "
+            "should be approved or needs changes."
+            "\n- decision must be APPROVE or REQUEST_CHANGES"
+            "\n- summary must be a short (<120 chars) human sentence"
+            "\n- comments should cite specific files/lines with concise guidance"
+            "\nFocus on correctness and security issues before style."
         ),
     )
 
     diff_text = git_diff()
     prompt = (
         "Review the following git diff between the working tree and origin/main.\n"
-        "Highlight potential issues and summarize the overall risk level.\n\n"
+        "Highlight potential issues and state whether to approve or request changes.\n\n"
         f"{diff_text}"
     )
 
     result = agent.run_sync(prompt)
-    print(result.output)
+    print(json.dumps(result.output.model_dump(), indent=2))
 
 
 def main() -> None:

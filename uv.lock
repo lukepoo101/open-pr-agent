@@ -989,12 +989,14 @@ name = "open-pr-agent"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "pydantic-settings" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-ai", specifier = ">=1.11.1" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },
 ]
