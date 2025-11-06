@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 
 
 class ReviewComment(BaseModel):
@@ -59,6 +60,28 @@ def git_diff() -> str:
     return diff
 
 
+def git_tracked_files() -> str:
+    """Return the list of git-tracked files for context."""
+
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except FileNotFoundError as exc:
+        raise SystemExit("git command not found in PATH") from exc
+    except subprocess.CalledProcessError as exc:
+        print(exc.stderr.strip() or "Failed to list git files.", file=sys.stderr)
+        raise SystemExit(exc.returncode)
+
+    files = result.stdout.strip()
+    if not files:
+        return "<no tracked files>"
+    return files
+
+
 def run_agent() -> None:
     try:
         settings = Settings()
@@ -74,6 +97,7 @@ def run_agent() -> None:
     model = OpenAIChatModel(
         settings.model,
         provider=provider,
+        settings=ModelSettings(temperature=0.1),
     )
 
     agent = Agent(
@@ -87,12 +111,16 @@ def run_agent() -> None:
             "\n- comments should cite specific files/lines with concise guidance"
             "\n- ignore formatting, linting, or stylistic issues; dedicated linters handle those"
             "\n- only flag correctness, logical flow, security, or missing critical tests/docs"
+            "\n- consider the existing repo structure when deciding if new tests/docs are required"
             "\nIf no substantive issues remain, approve the diff."
         ),
     )
 
     diff_text = git_diff()
+    tracked_files = git_tracked_files()
     prompt = (
+        "Repository file list (git tracked):\n"
+        f"{tracked_files}\n\n"
         "Review the following git diff between the working tree and origin/main.\n"
         "Highlight potential issues and state whether to approve or request changes.\n\n"
         f"{diff_text}"
