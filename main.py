@@ -85,7 +85,9 @@ def run_agent() -> None:
             "\n- decision must be APPROVE or REQUEST_CHANGES"
             "\n- summary must be a short (<120 chars) human sentence"
             "\n- comments should cite specific files/lines with concise guidance"
-            "\nFocus on correctness and security issues before style."
+            "\n- ignore formatting, linting, or stylistic issues; dedicated linters handle those"
+            "\n- only flag correctness, logical flow, security, or missing critical tests/docs"
+            "\nIf no substantive issues remain, approve the diff."
         ),
     )
 
