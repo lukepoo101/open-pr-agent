@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import subprocess
 import sys
 from typing import Literal
@@ -39,11 +41,11 @@ class Settings(BaseSettings):
     api_key: str
 
 
-def git_diff() -> str:
-    """Return the diff between the working tree and origin/main."""
+def git_diff(base_ref: str) -> str:
+    """Return the diff between the working tree and the provided base ref."""
     try:
         result = subprocess.run(
-            ["git", "diff", "origin/main"],
+            ["git", "diff", base_ref],
             capture_output=True,
             text=True,
             check=True,
@@ -56,7 +58,7 @@ def git_diff() -> str:
 
     diff = result.stdout.strip()
     if not diff:
-        return "No changes detected between the working tree and origin/main."
+        return f"No changes detected between the working tree and {base_ref}."
     return diff
 
 
@@ -82,7 +84,7 @@ def git_tracked_files() -> str:
     return files
 
 
-def run_agent() -> None:
+def run_agent(base_ref: str) -> None:
     try:
         settings = Settings()
     except Exception as exc:
@@ -116,12 +118,12 @@ def run_agent() -> None:
         ),
     )
 
-    diff_text = git_diff()
+    diff_text = git_diff(base_ref)
     tracked_files = git_tracked_files()
     prompt = (
         "Repository file list (git tracked):\n"
         f"{tracked_files}\n\n"
-        "Review the following git diff between the working tree and origin/main.\n"
+        f"Review the following git diff between the working tree and {base_ref}.\n"
         "Highlight potential issues and state whether to approve or request changes.\n\n"
         f"{diff_text}"
     )
@@ -131,7 +133,15 @@ def run_agent() -> None:
 
 
 def main() -> None:
-    run_agent()
+    parser = argparse.ArgumentParser(description="Run the Open PR Agent reviewer.")
+    parser.add_argument(
+        "--base-ref",
+        default=os.getenv("OPEN_PR_AGENT_BASE_REF", "origin/main"),
+        help="Git reference to diff against (default: origin/main or OPEN_PR_AGENT_BASE_REF)",
+    )
+    args = parser.parse_args()
+
+    run_agent(args.base_ref)
 
 
 if __name__ == "__main__":

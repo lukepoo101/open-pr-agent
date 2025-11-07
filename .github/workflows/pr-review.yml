@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v4
@@ -28,8 +30,10 @@ jobs:
           test -n "${OPENAI_API_KEY}" || { echo "OPENAI_API_KEY is not set"; exit 1; }
 
       - name: Run Open PR Agent
+        env:
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
         run: |
-          uv run main.py > review.json
+          uv run main.py --base-ref "${BASE_REF}" > review.json
           cat review.json
 
       - name: Build review payload
