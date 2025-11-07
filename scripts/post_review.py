@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import os
 from pathlib import Path
 
 
@@ -46,6 +47,19 @@ def build_review_payload(agent_output: dict) -> dict:
 
     if inline_comments:
         payload["comments"] = inline_comments
+
+    allow_approvals = os.getenv("OPEN_PR_AGENT_ALLOW_APPROVALS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if payload["event"] == "APPROVE" and not allow_approvals:
+        payload["event"] = "COMMENT"
+        payload["body"] = (
+            payload["body"]
+            + "\n\n"
+            + "_Auto-review would approve, but this token cannot submit approvals._"
+        ).strip()
 
     return payload
 

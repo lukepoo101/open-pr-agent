@@ -21,3 +21,5 @@ A ready-to-use workflow lives at `.github/workflows/pr-review.yml`. It runs on e
 1. In **Settings → Secrets and variables → Actions**, add repository variables `OPENAI_BASE_URL` and `OPENAI_MODEL` plus a secret `OPENAI_API_KEY`.
 2. Commit the workflow (already in this repo) and ensure the `GITHUB_TOKEN` has `pull-requests: write` (set via workflow permissions).
 3. When a PR is opened or updated, the workflow fetches full history, runs `uv run main.py --base-ref origin/<target-branch>`, transforms the JSON via `scripts/post_review.py`, and calls the GitHub Reviews API to leave the summary and inline comments as the workflow bot user.
+
+> ℹ️ GitHub Actions tokens cannot approve PRs. By default the workflow downgrades `APPROVE` to a regular review comment with a note explaining why. If you supply a PAT or GitHub App token that is allowed to approve, set `OPEN_PR_AGENT_ALLOW_APPROVALS=true` in the workflow env so the action keeps the `APPROVE` status.
