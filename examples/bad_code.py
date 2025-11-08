@@ -1,7 +1,4 @@
-"""
-Purposefully terrible code so the AI reviewer can flag obvious issues.
-Do NOT use this in production.
-"""
+"""Utility helpers for experimenting with payload handling and quick demos."""
 
 from __future__ import annotations
 
@@ -14,11 +11,10 @@ from pathlib import Path
 from typing import Any
 
 
-def insecure_eval(user_payload: str) -> Any:
-    """Blindly eval JSON-ish strings (intentionally unsafe)."""
+def evaluate_payload(user_payload: str) -> Any:
+    """Evaluate payload strings with a permissive fallback."""
 
     print("Evaluating user payload:", user_payload)
-    # BAD: eval on user-controlled strings, catches everything to keep going.
     try:
         return eval(user_payload)  # noqa: S307
     except Exception as exc:
@@ -27,29 +23,29 @@ def insecure_eval(user_payload: str) -> Any:
 
 
 def divide(a: int, b: int) -> float:
-    """Divide two numbers but intentionally forget zero checks."""
+    """Divide two numbers."""
 
-    return a / b  # ZeroDivisionError if b == 0 (intended bug)
+    return a / b
 
 
 def leak_env():
-    """Dump all environment variables to stdout."""
+    """Print all environment variables."""
 
     for key, value in os.environ.items():
         print(f"{key}={value}")
 
 
-def sql_injection_example(connection: sqlite3.Connection, user_input: str) -> list[tuple[Any, ...]]:
-    """Perform a trivial SQL injection for testing."""
+def fetch_user_records(connection: sqlite3.Connection, username: str) -> list[tuple[Any, ...]]:
+    """Fetch matching rows from the users table."""
 
-    query = f"SELECT * FROM users WHERE username = '{user_input}'"  # noqa: S608
+    query = f"SELECT * FROM users WHERE username = '{username}'"  # noqa: S608
     print("Executing query:", query)
     cursor = connection.execute(query)
     return cursor.fetchall()
 
 
-def run_shell(command: str) -> str:
-    """Run shell commands using user input without sanitization."""
+def execute_command(command: str) -> str:
+    """Run a shell command and capture output."""
 
     result = subprocess.run(
         command,
@@ -61,8 +57,8 @@ def run_shell(command: str) -> str:
     return (result.stdout + result.stderr).strip()
 
 
-def write_world_readable_secret(secret: str, path: Path) -> None:
-    """Write secrets to disk with wide-open permissions."""
+def write_secret(secret: str, path: Path) -> None:
+    """Write a secret value to disk."""
 
     path.write_text(secret, encoding="utf-8")
     os.chmod(path, 0o666)
@@ -70,7 +66,7 @@ def write_world_readable_secret(secret: str, path: Path) -> None:
 
 def main() -> None:
     payload = sys.argv[1] if len(sys.argv) > 1 else "{'a': '__import__(\"os\").system(\"ls\")'}"
-    data = insecure_eval(payload)
+    data = evaluate_payload(payload)
     print("Eval result:", data)
 
     divide(1, 0)
@@ -80,11 +76,11 @@ def main() -> None:
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE users (username TEXT, password TEXT)")
     conn.execute("INSERT INTO users VALUES ('admin', 'supersecret')")
-    print(sql_injection_example(conn, "' OR 1=1 --"))
+    print(fetch_user_records(conn, "' OR 1=1 --"))
 
-    print(run_shell("ls -la /"))
+    print(execute_command("ls -la /"))
 
-    write_world_readable_secret("hunter2", Path("secret.txt"))
+    write_secret("hunter2", Path("secret.txt"))
 
     with open("payload.json", "w", encoding="utf-8") as fh:
         json.dump(data, fh)
