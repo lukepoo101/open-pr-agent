@@ -10,39 +10,16 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    env:
-      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Verify configuration
-        run: |
-          test -n "${OPENAI_BASE_URL}" || { echo "OPENAI_BASE_URL is not set"; exit 1; }
-          test -n "${OPENAI_MODEL}" || { echo "OPENAI_MODEL is not set"; exit 1; }
-          test -n "${OPENAI_API_KEY}" || { echo "OPENAI_API_KEY is not set"; exit 1; }
-
       - name: Run Open PR Agent
-        env:
-          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
-        run: |
-          uv run main.py --base-ref "${BASE_REF}" > review.json
-          cat review.json
-
-      - name: Build review payload
-        run: uv run python scripts/post_review.py review.json review_payload.json
-
-      - name: Submit review
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api \
-            repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
-            --input review_payload.json
+        uses: ./
+        with:
+          openai_base_url: ${{ vars.OPENAI_BASE_URL }}
+          openai_model: ${{ vars.OPENAI_MODEL }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          allow_approvals: ${{ vars.OPEN_PR_AGENT_ALLOW_APPROVALS || 'false' }}

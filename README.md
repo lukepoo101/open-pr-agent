@@ -16,10 +16,36 @@ The script gathers `git diff origin/main`, creates an `OpenAIProvider` using you
 
 ## GitHub Action
 
-A ready-to-use workflow lives at `.github/workflows/pr-review.yml`. It runs on every PR update and posts an approval or change request using the agent's structured output. To enable it:
+This repo ships a composite action (`action.yml`) so any workflow can run the reviewer in a single step:
 
-1. In **Settings → Secrets and variables → Actions**, add repository variables `OPENAI_BASE_URL` and `OPENAI_MODEL` plus a secret `OPENAI_API_KEY`.
-2. Commit the workflow (already in this repo) and ensure the `GITHUB_TOKEN` has `pull-requests: write` (set via workflow permissions).
-3. When a PR is opened or updated, the workflow fetches full history, runs `uv run main.py --base-ref origin/<target-branch>`, transforms the JSON via `scripts/post_review.py`, and calls the GitHub Reviews API to leave the summary and inline comments as the workflow bot user.
+```yaml
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open PR Agent
+        uses: your-org/open-pr-agent@v1
+        with:
+          openai_base_url: ${{ vars.OPENAI_BASE_URL }}
+          openai_model: ${{ vars.OPENAI_MODEL }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          allow_approvals: false # Set true only if the provided token is allowed to approve PRs
+```
 
-> ℹ️ GitHub Actions tokens cannot approve PRs. By default the workflow downgrades `APPROVE` to a regular review comment with a note explaining why. If you supply a PAT or GitHub App token that is allowed to approve, set `OPEN_PR_AGENT_ALLOW_APPROVALS=true` in the workflow env so the action keeps the `APPROVE` status.
+Key inputs:
+
+- `openai_base_url`, `openai_model`, `openai_api_key` (required): connection information for your OpenAI-compatible endpoint.
+- `github_token` (optional): defaults to the workflow `GITHUB_TOKEN`, override when using a PAT/GitHub App.
+- `base_ref` (optional): override the default `origin/<PR base>` comparison.
+- `allow_approvals` (optional): defaults to `false`, set to `true` only when the supplied token may approve reviews.
+- `agent_output_path` / `payload_output_path`: customize where the intermediate JSON artifacts are written.
+
+Outputs expose the generated review payload (`review-event`, `review-body`, and both file paths) so downstream steps can introspect results without re-reading the files.
+
+A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation.
+
+> ℹ️ GitHub Actions tokens cannot approve PRs. By default the action downgrades an `APPROVE` decision to a comment and adds a note explaining why. Provide a PAT/GitHub App token via `github_token` and set `allow_approvals=true` if approvals should be forwarded.
