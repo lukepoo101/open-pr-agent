@@ -110,10 +110,13 @@ def run_agent(base_ref: str) -> None:
             "should be approved or needs changes."
             "\n- decision must be APPROVE or REQUEST_CHANGES"
             "\n- summary must be a short (<120 chars) human sentence"
-            "\n- comments should cite specific files/lines with concise guidance"
+            "\n- comments must cite specific files/lines with concise guidance"
+            "\n- prefer line-level feedback over generic repository-wide statements"
+            "\n- skip comments that cannot reference an exact file path (and line when possible)"
             "\n- ignore formatting, linting, or stylistic issues; dedicated linters handle those"
             "\n- only flag correctness, logical flow, security, or missing critical tests/docs"
             "\n- consider the existing repo structure when deciding if new tests/docs are required"
+            "\n- do not restate obvious metadata (e.g., 'new files were added') unless it impacts correctness"
             "\nIf no substantive issues remain, approve the diff."
         ),
     )
