@@ -16,7 +16,7 @@ inputs:
     description: API token for the OpenAI-compatible backend.
     required: true
   github_token:
-    description: Token with `pull_requests:write` scope. Defaults to `${{ github.token }}`.
+    description: Token with `pull_requests:write` scope. Defaults to the workflow `GITHUB_TOKEN`.
     required: false
     default: ""
   base_ref:
