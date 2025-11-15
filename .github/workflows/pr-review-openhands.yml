@@ -60,7 +60,7 @@ jobs:
 
       - name: Check required configuration
         env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           if [ -z "$LLM_API_KEY" ]; then
             echo "Error: LLM_API_KEY secret is not set."
@@ -77,7 +77,7 @@ jobs:
 
       - name: Run PR review
         env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd pr-repo
