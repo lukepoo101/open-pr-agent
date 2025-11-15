@@ -19,10 +19,6 @@ inputs:
     description: Token with `pull_requests:write` scope. Defaults to the workflow `GITHUB_TOKEN`.
     required: false
     default: ""
-  base_ref:
-    description: Optional git ref to diff against. Defaults to the PR base (`origin/<base>`).
-    required: false
-    default: ""
   working_directory:
     description: Relative path to the repository checkout containing `main.py`.
     required: false
@@ -92,24 +88,16 @@ runs:
         OPENAI_BASE_URL: ${{ inputs.openai_base_url }}
         OPENAI_MODEL: ${{ inputs.openai_model }}
         OPENAI_API_KEY: ${{ inputs.openai_api_key }}
-        INPUT_BASE_REF: ${{ inputs.base_ref }}
         INPUT_AGENT_ARGS: ${{ inputs.agent_args }}
         AGENT_OUTPUT_PATH: ${{ inputs.agent_output_path }}
       run: |
         set -euo pipefail
-        BASE_REF="${INPUT_BASE_REF:-${GITHUB_BASE_REF:-origin/main}}"
-        if [[ "$BASE_REF" != origin/* && "$BASE_REF" != refs/* ]]; then
-          BASE_REF="origin/${BASE_REF}"
-        fi
-
-        echo "Using base ref: $BASE_REF"
-
+        echo "Running Open PR Agent (OpenHands backend)"
         if [ -n "$INPUT_AGENT_ARGS" ]; then
-          uv run main.py --base-ref "$BASE_REF" $INPUT_AGENT_ARGS > "$AGENT_OUTPUT_PATH"
+          uv run main.py $INPUT_AGENT_ARGS > "$AGENT_OUTPUT_PATH"
         else
-          uv run main.py --base-ref "$BASE_REF" > "$AGENT_OUTPUT_PATH"
+          uv run main.py > "$AGENT_OUTPUT_PATH"
         fi
-
         echo "Agent output written to $AGENT_OUTPUT_PATH"
         cat "$AGENT_OUTPUT_PATH"
 
