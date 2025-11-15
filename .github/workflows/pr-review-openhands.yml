@@ -16,7 +16,7 @@ jobs:
       github.event.requested_reviewer.login == 'openhands-agent'
     runs-on: ubuntu-latest
     env:
-      LLM_MODEL: ${{ vars.OPENAI_MODEL }}
+      LLM_MODEL: openai/${{ vars.OPENAI_MODEL }}
       LLM_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_TITLE: ${{ github.event.pull_request.title }}
