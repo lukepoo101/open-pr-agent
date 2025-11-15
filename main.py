@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 from textwrap import shorten
 from typing import Literal
@@ -180,7 +181,11 @@ def run_openhands_backend(settings: Settings, event_path: Path) -> ReviewOutput:
 
     prompt = OPENHANDS_PROMPT.format(**pr_info)
     conversation.send_message(prompt)
-    conversation.run()
+
+    # OpenHands prints the full agent transcript to stdout in CLI mode.
+    # Redirect stdout to stderr while the agent runs so our JSON output remains clean.
+    with redirect_stdout(sys.stderr):
+        conversation.run()
 
     review_content = get_agent_final_response(conversation.state.events)
     if not review_content:
