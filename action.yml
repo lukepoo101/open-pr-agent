@@ -93,10 +93,15 @@ runs:
       run: |
         set -euo pipefail
         echo "Running Open PR Agent (OpenHands backend)"
+        EVENT_ARG=()
+        if [ -n "${GITHUB_EVENT_PATH:-}" ]; then
+          EVENT_ARG=(--event-path "$GITHUB_EVENT_PATH")
+        fi
+
         if [ -n "$INPUT_AGENT_ARGS" ]; then
-          uv run main.py $INPUT_AGENT_ARGS > "$AGENT_OUTPUT_PATH"
+          uv run main.py "${EVENT_ARG[@]}" $INPUT_AGENT_ARGS > "$AGENT_OUTPUT_PATH"
         else
-          uv run main.py > "$AGENT_OUTPUT_PATH"
+          uv run main.py "${EVENT_ARG[@]}" > "$AGENT_OUTPUT_PATH"
         fi
         echo "Agent output written to $AGENT_OUTPUT_PATH"
         cat "$AGENT_OUTPUT_PATH"
