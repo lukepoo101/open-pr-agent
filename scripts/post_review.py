@@ -71,8 +71,22 @@ def main() -> None:
     agent_output_path = Path(sys.argv[1])
     payload_path = Path(sys.argv[2])
 
-    with agent_output_path.open() as fh:
-        agent_output = json.load(fh)
+    try:
+        agent_output_raw = agent_output_path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise SystemExit(f"Agent output file not found: {agent_output_path}") from exc
+
+    if not agent_output_raw.strip():
+        raise SystemExit(
+            f"Agent output file is empty: {agent_output_path}. Check earlier workflow steps."
+        )
+
+    try:
+        agent_output = json.loads(agent_output_raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"Agent output file {agent_output_path} does not contain valid JSON: {exc}"
+        ) from exc
 
     payload = build_review_payload(agent_output)
 
