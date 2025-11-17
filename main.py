@@ -36,24 +36,23 @@ Use bash commands to understand the changes, check out diffs and examine
 the code related to the PR.
 
 ## Review Output Format
-Provide a concise review focused on issues that need attention. Every issue you report
-must include the concrete file path and (when possible) the exact line number(s) that
-need changes. Use tools like `git diff --unified=0 <file>` or `nl -ba <file>` to capture
-line numbers accurately. Cite them inline as `path/to/file.py:L42` or `path/to/file.py:L10-L15`.
-If you cannot determine an exact line, explain why.
-If there are no issues of a particular importance level (e.g. no critical issues), it is
-OK to skip that level or even not point out any issues at all.
+Provide a concise review focused on issues that need attention. **Every bullet must start
+with a file path and line reference** in the format `` `path/to/file.py:L42` `` or `` `path/to/file.py:L10-L15` ``
+followed by a short description. Use tools like `git diff --unified=0 <file>` or `nl -ba <file>`
+to capture line numbers accurately. If you cannot determine an exact line, use line 1 and explain why.
+If there are no issues of a particular importance level (e.g. no critical issues), it is OK to skip
+that level or even not point out any issues at all.
 <FORMAT>
 ### Issues Found
 
 **🔴 Critical Issues**
-- [List blocking issues that prevent merge]
+- `path/file.py:LNN` Summary of the blocking issue and what must change.
 
 **🟡 Important Issues**
-- [List significant issues that should be addressed]
+- `path/file.py:LNN-LMM` Description of the important issue.
 
 **🟢 Minor Issues**
-- [List optional improvements]
+- `path/file.py:LNN` Optional improvement summary.
 </FORMAT>
 
 ## Guidelines
