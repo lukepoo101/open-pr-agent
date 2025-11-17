@@ -98,10 +98,11 @@ runs:
           EVENT_ARG=(--event-path "$GITHUB_EVENT_PATH")
         fi
 
+        OUTPUT_ARGS=(--output-path "$AGENT_OUTPUT_PATH")
         if [ -n "$INPUT_AGENT_ARGS" ]; then
-          uv run main.py "${EVENT_ARG[@]}" $INPUT_AGENT_ARGS > "$AGENT_OUTPUT_PATH"
+          uv run main.py "${EVENT_ARG[@]}" "${OUTPUT_ARGS[@]}" $INPUT_AGENT_ARGS
         else
-          uv run main.py "${EVENT_ARG[@]}" > "$AGENT_OUTPUT_PATH"
+          uv run main.py "${EVENT_ARG[@]}" "${OUTPUT_ARGS[@]}"
         fi
         echo "Agent output written to $AGENT_OUTPUT_PATH"
         cat "$AGENT_OUTPUT_PATH"

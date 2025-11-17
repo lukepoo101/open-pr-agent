@@ -211,6 +211,11 @@ def main() -> None:
         default=os.getenv("GITHUB_EVENT_PATH", ""),
         help="Path to a pull_request event payload (required). Defaults to GITHUB_EVENT_PATH.",
     )
+    parser.add_argument(
+        "--output-path",
+        default=os.getenv("AGENT_OUTPUT_PATH", "review.json"),
+        help="Where to write the structured agent output (defaults to AGENT_OUTPUT_PATH or review.json).",
+    )
     args = parser.parse_args()
 
     try:
@@ -225,7 +230,10 @@ def main() -> None:
 
     review = run_openhands_backend(settings, event_path)
 
-    print(json.dumps(review.model_dump(), indent=2))
+    try:
+        Path(args.output_path).write_text(json.dumps(review.model_dump(), indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise SystemExit(f"Failed to write agent output to {args.output_path}: {exc}") from exc
 
 
 if __name__ == "__main__":

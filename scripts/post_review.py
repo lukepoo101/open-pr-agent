@@ -8,6 +8,25 @@ import os
 from pathlib import Path
 
 
+def _parse_agent_output(raw: str) -> dict:
+    """Load JSON while tolerating leading/trailing noise (e.g., shell banners)."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        trimmed = raw[start : end + 1]
+        try:
+            return json.loads(trimmed)
+        except json.JSONDecodeError:
+            pass
+
+    raise
+
+
 def build_review_payload(agent_output: dict) -> dict:
     decision = agent_output.get("decision", "COMMENT")
     summary = agent_output.get("summary", "")
@@ -82,7 +101,7 @@ def main() -> None:
         )
 
     try:
-        agent_output = json.loads(agent_output_raw)
+        agent_output = _parse_agent_output(agent_output_raw)
     except json.JSONDecodeError as exc:
         raise SystemExit(
             f"Agent output file {agent_output_path} does not contain valid JSON: {exc}"
