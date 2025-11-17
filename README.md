@@ -39,6 +39,9 @@ jobs:
 Key inputs:
 
 - `openai_base_url`, `openai_model`, `openai_api_key` (required): connection information for your OpenAI-compatible endpoint.
+- `github_token` (optional): defaults to the workflow `GITHUB_TOKEN`. Provide a PAT/GitHub App token if you need to bypass the default permissions.
 - `agent_output_path`: customize where the Markdown review is written. The workflow prints the contents so you can inspect it in the logs.
+
+After generating the Markdown summary, the action posts it as a COMMENT review on the pull request via `gh api`. If you prefer to only inspect the file, omit the final step from your workflow.
 
 A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation. Use downstream steps or manual review to interpret the generated Markdown as needed.
