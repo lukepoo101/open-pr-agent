@@ -25,7 +25,9 @@ changes and identify issues that need to be addressed.
 
 ## Analysis Process
 Use bash commands to understand the changes, check out diffs and examine
-the code related to the PR.
+the code related to the PR. Ignore lock files and other generated artifacts (e.g.
+`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `uv.lock`, compiled assets)
+even if the PR modifies them—focus on source files and meaningful changes only.
 
 ## Review Output Format
 Provide a concise review focused on issues that need attention. If there are no issues

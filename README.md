@@ -44,4 +44,4 @@ Key inputs:
 
 After generating the Markdown summary, the action posts it as a COMMENT review on the pull request via `gh api`. If you prefer to only inspect the file, omit the final step from your workflow.
 
-A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation. Use downstream steps or manual review to interpret the generated Markdown as needed.
+A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation. Use downstream steps or manual review to interpret the generated Markdown as needed. The reviewer automatically skips lock files and other generated artifacts—even if they change—to reduce noise from large, unimportant diffs.
