@@ -51,7 +51,7 @@ A ready-to-use validation workflow still lives at `.github/workflows/pr-review.y
 
 `main.py` now orchestrates the OpenHands PR review agent under the hood. When the action runs inside GitHub Actions (where `GITHUB_EVENT_PATH` exposes the pull request payload), the workflow automatically:
 
-1. Launches the OpenHands agent so it can explore the repository, gather diffs, and produce a Markdown review.
+1. Launches the OpenHands agent so it can explore the repository, gather diffs, and produce a Markdown review that cites file paths and line numbers for each issue whenever possible.
 2. Sends that Markdown back through the structured-output agent (powered by the same `OPENAI_*` model) to convert it into `ReviewOutput` JSON.
 3. Uses the existing tooling (`scripts/post_review.py`, `scripts/emit_review_outputs.py`) to build and submit rich GitHub review events with inline comments when possible.
 

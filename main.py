@@ -36,9 +36,13 @@ Use bash commands to understand the changes, check out diffs and examine
 the code related to the PR.
 
 ## Review Output Format
-Provide a concise review focused on issues that need attention. If there are no issues
-of a particular importance level (e.g. no critical issues), it is OK to skip that level
-or even not point out any issues at all.
+Provide a concise review focused on issues that need attention. Every issue you report
+must include the concrete file path and (when possible) the exact line number(s) that
+need changes. Use tools like `git diff --unified=0 <file>` or `nl -ba <file>` to capture
+line numbers accurately. Cite them inline as `path/to/file.py:L42` or `path/to/file.py:L10-L15`.
+If you cannot determine an exact line, explain why.
+If there are no issues of a particular importance level (e.g. no critical issues), it is
+OK to skip that level or even not point out any issues at all.
 <FORMAT>
 ### Issues Found
 
@@ -55,6 +59,7 @@ or even not point out any issues at all.
 ## Guidelines
 - Focus ONLY on issues that need to be fixed
 - Be specific and actionable
+- Always cite file paths and line numbers for every issue when possible
 - Follow the format above strictly
 - Do NOT include lengthy positive feedback
 
@@ -65,8 +70,10 @@ OPENHANDS_TRANSFORM_PROMPT = (
     "You convert OpenHands agent Markdown reviews into structured review data.\n"
     "- decision: APPROVE if no blocking issues remain, otherwise REQUEST_CHANGES.\n"
     "- summary: short (<120 chars) description of the overall result.\n"
-    "- comments: cite concrete files/paths and include actionable guidance. "
-    "Leave line unset if not provided.\n"
+    "- comments: extract concrete files/paths plus actionable guidance.\n"
+    "- When the review cites lines like `path/file.py:L12` or `path/file.py:L12-L18`,\n"
+    "  set `path` to the cited file and set `line` to the first line number.\n"
+    "- If no line is mentioned, leave `line` unset. Do not invent line numbers.\n"
     "- Only include comments that clearly map to files mentioned in the review text.\n"
     "- Ignore compliments or meta commentary.\n"
     "Return the result as ReviewOutput."
