@@ -6,18 +6,10 @@ import os
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
-from textwrap import shorten
-from typing import Literal
-
 from openhands.sdk import Conversation, LLM, get_logger
 from openhands.sdk.conversation import get_agent_final_response
 from openhands.tools.preset.default import get_default_agent
-from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.settings import ModelSettings
 
 logger = get_logger(__name__)
 
@@ -36,62 +28,30 @@ Use bash commands to understand the changes, check out diffs and examine
 the code related to the PR.
 
 ## Review Output Format
-Provide a concise review focused on issues that need attention. **Every bullet must start
-with a file path and line reference** in the format `` `path/to/file.py:L42` `` or `` `path/to/file.py:L10-L15` ``
-followed by a short description. Use tools like `git diff --unified=0 <file>` or `nl -ba <file>`
-to capture line numbers accurately. If you cannot determine an exact line, use line 1 and explain why.
-If there are no issues of a particular importance level (e.g. no critical issues), it is OK to skip
-that level or even not point out any issues at all.
+Provide a concise review focused on issues that need attention. If there are no issues
+of a particular importance level (e.g. no critical issues), it is OK to skip that level
+or even not point out any issues at all.
 <FORMAT>
 ### Issues Found
 
 **🔴 Critical Issues**
-- `path/file.py:LNN` Summary of the blocking issue and what must change.
+- [List blocking issues that prevent merge]
 
 **🟡 Important Issues**
-- `path/file.py:LNN-LMM` Description of the important issue.
+- [List significant issues that should be addressed]
 
 **🟢 Minor Issues**
-- `path/file.py:LNN` Optional improvement summary.
+- [List optional improvements]
 </FORMAT>
 
 ## Guidelines
 - Focus ONLY on issues that need to be fixed
 - Be specific and actionable
-- Always cite file paths and line numbers for every issue when possible
 - Follow the format above strictly
 - Do NOT include lengthy positive feedback
 
 Start by analyzing the changes with bash commands, then provide your structured review.
 """
-
-OPENHANDS_TRANSFORM_PROMPT = (
-    "You convert OpenHands agent Markdown reviews into structured review data.\n"
-    "- decision: APPROVE if no blocking issues remain, otherwise REQUEST_CHANGES.\n"
-    "- summary: short (<120 chars) description of the overall result.\n"
-    "- comments: extract concrete files/paths plus actionable guidance.\n"
-    "- When the review cites lines like `path/file.py:L12` or `path/file.py:L12-L18`,\n"
-    "  set `path` to the cited file and set `line` to the first line number.\n"
-    "- If no line is mentioned, leave `line` unset. Do not invent line numbers.\n"
-    "- Only include comments that clearly map to files mentioned in the review text.\n"
-    "- Ignore compliments or meta commentary.\n"
-    "Return the result as ReviewOutput."
-)
-
-class ReviewComment(BaseModel):
-    """Structured inline comment for an individual file/line."""
-
-    path: str
-    line: int | None = None
-    comment: str
-
-
-class ReviewOutput(BaseModel):
-    """Structured review summary emitted by the agent."""
-
-    decision: Literal["APPROVE", "REQUEST_CHANGES"]
-    summary: str
-    comments: list[ReviewComment] = Field(default_factory=list)
 
 
 class Settings(BaseSettings):
@@ -102,25 +62,6 @@ class Settings(BaseSettings):
     base_url: str
     model: str
     api_key: str
-
-
-def _build_model(settings: Settings) -> OpenAIChatModel:
-    provider = OpenAIProvider(
-        base_url=settings.base_url,
-        api_key=settings.api_key,
-    )
-    return OpenAIChatModel(
-        settings.model,
-        provider=provider,
-        settings=ModelSettings(temperature=0.1),
-    )
-
-
-def _run_structured_agent(settings: Settings, system_prompt: str, user_prompt: str) -> ReviewOutput:
-    model = _build_model(settings)
-    agent = Agent(model=model, output_type=ReviewOutput, system_prompt=system_prompt)
-    result = agent.run_sync(user_prompt)
-    return result.output
 
 
 def _prepare_openhands_model(model_name: str) -> str:
@@ -152,23 +93,7 @@ def _load_pr_info(event_path: Path) -> dict[str, str]:
     }
 
 
-def _fallback_review_from_text(text: str) -> ReviewOutput:
-    summary_source = next((line.strip() for line in text.splitlines() if line.strip()), "OpenHands review result.")
-    summary = shorten(summary_source, width=200, placeholder="...")
-    return ReviewOutput(
-        decision="REQUEST_CHANGES",
-        summary=summary,
-        comments=[
-            ReviewComment(
-                path="OpenHands",
-                line=None,
-                comment=text.strip(),
-            )
-        ],
-    )
-
-
-def run_openhands_backend(settings: Settings, event_path: Path) -> ReviewOutput:
+def run_openhands_backend(settings: Settings, event_path: Path) -> str:
     pr_info = _load_pr_info(event_path)
     logger.info("Running OpenHands agent for PR #%s: %s", pr_info["number"], pr_info["title"])
 
@@ -197,17 +122,7 @@ def run_openhands_backend(settings: Settings, event_path: Path) -> ReviewOutput:
     if not review_content:
         raise RuntimeError("OpenHands agent did not return any review content.")
 
-    try:
-        structured = _run_structured_agent(
-            settings,
-            system_prompt=OPENHANDS_TRANSFORM_PROMPT,
-            user_prompt=review_content,
-        )
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.error("Failed to structure OpenHands output: %s", exc)
-        structured = _fallback_review_from_text(review_content)
-
-    return structured
+    return review_content.strip()
 
 
 def main() -> None:
@@ -219,8 +134,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-path",
-        default=os.getenv("AGENT_OUTPUT_PATH", "review.json"),
-        help="Where to write the structured agent output (defaults to AGENT_OUTPUT_PATH or review.json).",
+        default=os.getenv("AGENT_OUTPUT_PATH", "openhands-review.md"),
+        help="Where to write the OpenHands review markdown (defaults to AGENT_OUTPUT_PATH or openhands-review.md).",
     )
     args = parser.parse_args()
 
@@ -237,9 +152,11 @@ def main() -> None:
     review = run_openhands_backend(settings, event_path)
 
     try:
-        Path(args.output_path).write_text(json.dumps(review.model_dump(), indent=2) + "\n", encoding="utf-8")
+        Path(args.output_path).write_text(f"{review.strip()}\n", encoding="utf-8")
     except OSError as exc:
         raise SystemExit(f"Failed to write agent output to {args.output_path}: {exc}") from exc
+
+    print(f"OpenHands review written to {args.output_path}")
 
 
 if __name__ == "__main__":

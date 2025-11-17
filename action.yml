@@ -1,5 +1,5 @@
 name: Open PR Agent Review
-description: Run the Open PR Agent to generate and submit AI-powered pull request reviews.
+description: Run the Open PR Agent to generate an AI-powered pull request review summary.
 author: open-pr-agent
 branding:
   icon: check-square
@@ -15,10 +15,6 @@ inputs:
   openai_api_key:
     description: API token for the OpenAI-compatible backend.
     required: true
-  github_token:
-    description: Token with `pull_requests:write` scope. Defaults to the workflow `GITHUB_TOKEN`.
-    required: false
-    default: ""
   working_directory:
     description: Relative path to the repository checkout containing `main.py`.
     required: false
@@ -28,31 +24,9 @@ inputs:
     required: false
     default: ""
   agent_output_path:
-    description: Location for the raw agent JSON output.
+    description: Location for the saved OpenHands review text.
     required: false
-    default: review.json
-  payload_output_path:
-    description: Location for the GitHub review payload JSON.
-    required: false
-    default: review_payload.json
-  allow_approvals:
-    description: Set to `true` if the token may submit approvals.
-    required: false
-    default: "false"
-
-outputs:
-  agent-output-path:
-    description: Path to the raw agent output JSON produced by `main.py`.
-    value: ${{ steps.review-metadata.outputs.agent-output-path }}
-  payload-path:
-    description: Path to the GitHub review payload JSON.
-    value: ${{ steps.review-metadata.outputs.payload-path }}
-  review-event:
-    description: Final review event (COMMENT/APPROVE/REQUEST_CHANGES) in the payload.
-    value: ${{ steps.review-metadata.outputs.review-event }}
-  review-body:
-    description: Markdown body submitted with the review.
-    value: ${{ steps.review-metadata.outputs.review-body }}
+    default: openhands-review.md
 
 runs:
   using: composite
@@ -106,70 +80,3 @@ runs:
         fi
         echo "Agent output written to $AGENT_OUTPUT_PATH"
         cat "$AGENT_OUTPUT_PATH"
-
-    - name: Build review payload
-      id: build-payload
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      env:
-        OPEN_PR_AGENT_ALLOW_APPROVALS: ${{ inputs.allow_approvals }}
-        AGENT_OUTPUT_PATH: ${{ inputs.agent_output_path }}
-        PAYLOAD_PATH: ${{ inputs.payload_output_path }}
-      run: |
-        set -euo pipefail
-        uv run python scripts/post_review.py "$AGENT_OUTPUT_PATH" "$PAYLOAD_PATH"
-        echo "Review payload written to $PAYLOAD_PATH"
-
-    - name: Capture review metadata
-      id: review-metadata
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      env:
-        AGENT_OUTPUT_PATH: ${{ inputs.agent_output_path }}
-        PAYLOAD_PATH: ${{ inputs.payload_output_path }}
-      run: |
-        set -euo pipefail
-        if [ -z "${GITHUB_OUTPUT:-}" ]; then
-          echo "GITHUB_OUTPUT is not set; this step must run inside a GitHub Actions job." >&2
-          exit 1
-        fi
-        uv run python scripts/emit_review_outputs.py \
-          --agent-output-path "$AGENT_OUTPUT_PATH" \
-          --payload-path "$PAYLOAD_PATH" \
-          --outputs-file "$GITHUB_OUTPUT"
-
-    - name: Submit review
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      env:
-        GH_TOKEN: ${{ inputs.github_token || github.token }}
-        PAYLOAD_PATH: ${{ inputs.payload_output_path }}
-      run: |
-        set -euo pipefail
-        if [ -z "${GITHUB_EVENT_PATH:-}" ] || [ -z "${GITHUB_REPOSITORY:-}" ]; then
-          echo "This action must run inside a GitHub Actions workflow." >&2
-          exit 1
-        fi
-        if [ -z "${GITHUB_EVENT_NAME:-}" ] || [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
-          echo "Open PR Agent must run on pull_request events to know which PR to review." >&2
-          exit 1
-        fi
-        if [ -z "${GH_TOKEN:-}" ]; then
-          echo "GH_TOKEN is required to submit the review (pass github_token input if needed)." >&2
-          exit 1
-        fi
-
-        if ! command -v jq >/dev/null 2>&1; then
-          echo "jq is required but was not found in PATH." >&2
-          exit 1
-        fi
-
-        PULL_NUMBER="$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH")"
-        if [ -z "$PULL_NUMBER" ]; then
-          echo "Unable to read pull request number from event payload." >&2
-          exit 1
-        fi
-
-        gh api \
-          "repos/${GITHUB_REPOSITORY}/pulls/${PULL_NUMBER}/reviews" \
-          --input "$PAYLOAD_PATH"
