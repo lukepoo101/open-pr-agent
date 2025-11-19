@@ -194,9 +194,10 @@ def post_github_comment(
             for comment in comments_resp.json():
                 if COMMENT_TAG in (comment.get("body") or ""):
                     delete_url = f"https://api.github.com/repos/{repo}/issues/comments/{comment['id']}"
-                    requests.delete(delete_url, headers=headers)
+                    delete_resp = requests.delete(delete_url, headers=headers)
+                    delete_resp.raise_for_status()
                     logger.info("Deleted old comment %s", comment["id"])
-        except Exception as exc:
+        except requests.exceptions.RequestException as exc:
             logger.warning("Failed to delete old comments: %s", exc)
 
     url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
@@ -206,7 +207,7 @@ def post_github_comment(
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         logger.info("Successfully posted review comment to PR #%s", issue_number)
-    except Exception as exc:
+    except requests.exceptions.RequestException as exc:
         logger.error("Failed to post review comment: %s", exc)
 
 
@@ -256,14 +257,16 @@ def main() -> None:
 
     print(f"OpenHands review written to {args.output_path}")
 
-    if args.github_token:
-        if event_path:
+    if event_path:
+        if not args.github_token:
+            logger.warning("No GITHUB_TOKEN provided. Skipping comment posting.")
+        else:
             pr_info = _load_pr_info(event_path)
             post_github_comment(
                 review, pr_info, args.github_token, args.delete_old_comments
             )
-        else:
-            logger.warning("Cannot post comment without event payload (local mode).")
+    elif args.github_token:
+        logger.warning("Cannot post comment without event payload (local mode).")
 
 
 if __name__ == "__main__":
