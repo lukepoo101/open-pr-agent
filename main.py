@@ -16,6 +16,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = get_logger(__name__)
 
+COMMENT_TAG = "<!-- open-pr-agent-review -->"
+
 OPENHANDS_PROMPT = """You are an expert code reviewer. Use bash commands to analyze the PR
 changes and identify issues that need to be addressed.
 
@@ -28,10 +30,9 @@ changes and identify issues that need to be addressed.
 
 ## Analysis Process
 Use bash commands to understand the changes. You should start by running:
-`git diff {base_branch}...{head_branch}`
-to see the changes introduced by this PR.
-Then examine the code related to the PR. Ignore lock files and other generated artifacts (e.g.
-`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `uv.lock`, compiled assets)
+`git diff {base_branch}...{head_branch} -- . ':(exclude)package-lock.json' ':(exclude)yarn.lock' ':(exclude)pnpm-lock.yaml' ':(exclude)poetry.lock' ':(exclude)uv.lock' ':(exclude)*.lock'`
+to see the changes introduced by this PR, excluding lock files.
+Then examine the code related to the PR. Ignore any other generated artifacts or compiled assets
 even if the PR modifies them—focus on source files and meaningful changes only.
 
 ## Review Output Format
@@ -168,20 +169,46 @@ def run_openhands_backend(settings: Settings, event_path: Path | None) -> str:
     return review_content.strip()
 
 
-def post_github_comment(review: str, pr_info: dict[str, str], token: str) -> None:
+def post_github_comment(
+    review: str, pr_info: dict[str, str], token: str, delete_old_comments: bool = True
+) -> None:
     if not token:
         logger.warning("No GITHUB_TOKEN provided, skipping comment posting.")
         return
 
     repo = pr_info["repo_name"]
     issue_number = pr_info["number"]
-    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
-
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    data = {"body": review}
+
+    if delete_old_comments:
+        try:
+            # Identify the current user (the bot or the user owning the token)
+            user_resp = requests.get("https://api.github.com/user", headers=headers)
+            user_resp.raise_for_status()
+            current_user_id = user_resp.json()["id"]
+
+            # List comments on the issue/PR
+            comments_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+            comments_resp = requests.get(comments_url, headers=headers)
+            comments_resp.raise_for_status()
+
+            # Delete comments created by the current user that contain the tag
+            for comment in comments_resp.json():
+                if (
+                    comment["user"]["id"] == current_user_id
+                    and COMMENT_TAG in comment.get("body", "")
+                ):
+                    delete_url = f"https://api.github.com/repos/{repo}/issues/comments/{comment['id']}"
+                    requests.delete(delete_url, headers=headers)
+                    logger.info("Deleted old comment %s", comment["id"])
+        except Exception as exc:
+            logger.warning("Failed to delete old comments: %s", exc)
+
+    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+    data = {"body": f"{review}\n\n{COMMENT_TAG}"}
 
     try:
         response = requests.post(url, headers=headers, json=data)
@@ -207,6 +234,12 @@ def main() -> None:
         "--github-token",
         default=os.getenv("GITHUB_TOKEN", ""),
         help="GitHub token for posting comments (optional). Defaults to GITHUB_TOKEN.",
+    )
+    parser.add_argument(
+        "--delete-old-comments",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Whether to delete old review comments from this bot. Defaults to True.",
     )
     args = parser.parse_args()
 
@@ -234,7 +267,9 @@ def main() -> None:
     if args.github_token:
         if event_path:
             pr_info = _load_pr_info(event_path)
-            post_github_comment(review, pr_info, args.github_token)
+            post_github_comment(
+                review, pr_info, args.github_token, args.delete_old_comments
+            )
         else:
             logger.warning("Cannot post comment without event payload (local mode).")
 

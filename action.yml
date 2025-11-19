@@ -31,6 +31,10 @@ inputs:
     description: Location for the saved OpenHands review text.
     required: false
     default: openhands-review.md
+  delete_old_comments:
+    description: Whether to delete old review comments from this bot.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -69,6 +73,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token || github.token }}
         INPUT_AGENT_ARGS: ${{ inputs.agent_args }}
         AGENT_OUTPUT_PATH: ${{ inputs.agent_output_path }}
+        DELETE_OLD_COMMENTS: ${{ inputs.delete_old_comments }}
       run: |
         set -euo pipefail
         echo "Running Open PR Agent (OpenHands backend)"
@@ -77,11 +82,18 @@ runs:
           EVENT_ARG=(--event-path "$GITHUB_EVENT_PATH")
         fi
 
+        DELETE_OLD_COMMENTS_ARG=()
+        if [ "$DELETE_OLD_COMMENTS" == "false" ]; then
+          DELETE_OLD_COMMENTS_ARG=(--no-delete-old-comments)
+        else
+          DELETE_OLD_COMMENTS_ARG=(--delete-old-comments)
+        fi
+
         OUTPUT_ARGS=(--output-path "$AGENT_OUTPUT_PATH")
         if [ -n "$INPUT_AGENT_ARGS" ]; then
-          uv run main.py "${EVENT_ARG[@]}" "${OUTPUT_ARGS[@]}" $INPUT_AGENT_ARGS
+          uv run main.py "${EVENT_ARG[@]}" "${OUTPUT_ARGS[@]}" "${DELETE_OLD_COMMENTS_ARG[@]}" $INPUT_AGENT_ARGS
         else
-          uv run main.py "${EVENT_ARG[@]}" "${OUTPUT_ARGS[@]}"
+          uv run main.py "${EVENT_ARG[@]}" "${OUTPUT_ARGS[@]}" "${DELETE_OLD_COMMENTS_ARG[@]}"
         fi
         echo "Agent output written to $AGENT_OUTPUT_PATH"
         cat "$AGENT_OUTPUT_PATH"
