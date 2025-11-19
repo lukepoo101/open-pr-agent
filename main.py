@@ -185,22 +185,14 @@ def post_github_comment(
 
     if delete_old_comments:
         try:
-            # Identify the current user (the bot or the user owning the token)
-            user_resp = requests.get("https://api.github.com/user", headers=headers)
-            user_resp.raise_for_status()
-            current_user_id = user_resp.json()["id"]
-
             # List comments on the issue/PR
             comments_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
-            comments_resp = requests.get(comments_url, headers=headers)
+            comments_resp = requests.get(comments_url, headers=headers, params={"per_page": 100})
             comments_resp.raise_for_status()
 
-            # Delete comments created by the current user that contain the tag
+            # Delete comments that contain the tag
             for comment in comments_resp.json():
-                if (
-                    comment["user"]["id"] == current_user_id
-                    and COMMENT_TAG in comment.get("body", "")
-                ):
+                if COMMENT_TAG in (comment.get("body") or ""):
                     delete_url = f"https://api.github.com/repos/{repo}/issues/comments/{comment['id']}"
                     requests.delete(delete_url, headers=headers)
                     logger.info("Deleted old comment %s", comment["id"])
