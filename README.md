@@ -9,10 +9,13 @@ FOSS AI PR review agent
    - `OPENAI_BASE_URL`: HTTPS endpoint for your custom model gateway.
    - `OPENAI_MODEL`: Model identifier (e.g. `gpt-4o-mini`).
    - `OPENAI_API_KEY`: API token that grants access to the gateway.
-3. Provide a pull_request event payload: on GitHub Actions the `GITHUB_EVENT_PATH` env is already populated; locally download or craft the event JSON and pass `--event-path <pull_request.json>` (or export `GITHUB_EVENT_PATH`).
-4. Run the reviewer: `uv run python main.py --event-path <pull_request.json> --output-path review.md`.
+3. Run the reviewer:
+   - **Locally**: `uv run main.py`
+     - This will infer the PR information from your local git repository (current branch vs main).
+   - **With Event Payload**: `uv run main.py --event-path <pull_request.json>`
+     - Useful for reproducing GitHub Actions behavior or testing specific event payloads.
 
-The script launches the OpenHands agent so it can explore the repository, then writes the raw Markdown review summary directly to the specified file (default `openhands-review.md`). Any missing env var or invalid event payload causes the run to exit with a helpful error.
+The script launches the OpenHands agent so it can explore the repository, then writes the raw Markdown review summary directly to the specified file (default `openhands-review.md`). If you provide `--github-token <token>` (and a valid event path), it will also post the review as a comment on the PR.
 
 ## GitHub Action
 
@@ -42,6 +45,6 @@ Key inputs:
 - `github_token` (optional): defaults to the workflow `GITHUB_TOKEN`. Provide a PAT/GitHub App token if you need to bypass the default permissions.
 - `agent_output_path`: customize where the Markdown review is written. The workflow prints the contents so you can inspect it in the logs.
 
-After generating the Markdown summary, the action posts it as a COMMENT review on the pull request via `gh api`. If you prefer to only inspect the file, omit the final step from your workflow.
+After generating the Markdown summary, the action posts it as a COMMENT review on the pull request if the `github_token` input is provided (default).
 
 A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation. Use downstream steps or manual review to interpret the generated Markdown as needed. The reviewer automatically skips lock files and other generated artifacts—even if they change—to reduce noise from large, unimportant diffs.

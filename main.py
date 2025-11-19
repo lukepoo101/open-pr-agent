@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
+
+import requests
 from openhands.sdk import Conversation, LLM, get_logger
 from openhands.sdk.conversation import get_agent_final_response
 from openhands.tools.preset.default import get_default_agent
@@ -24,8 +27,10 @@ changes and identify issues that need to be addressed.
 - **Head Branch**: {head_branch}
 
 ## Analysis Process
-Use bash commands to understand the changes, check out diffs and examine
-the code related to the PR. Ignore lock files and other generated artifacts (e.g.
+Use bash commands to understand the changes. You should start by running:
+`git diff {base_branch}...{head_branch}`
+to see the changes introduced by this PR.
+Then examine the code related to the PR. Ignore lock files and other generated artifacts (e.g.
 `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `uv.lock`, compiled assets)
 even if the PR modifies them—focus on source files and meaningful changes only.
 
@@ -73,6 +78,37 @@ def _prepare_openhands_model(model_name: str) -> str:
     return f"openai/{model_name}"
 
 
+def _get_git_output(args: list[str]) -> str:
+    try:
+        return subprocess.check_output(args, text=True).strip()
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def _load_local_info() -> dict[str, str]:
+    """Infer PR information from the local git repository."""
+    head_branch = _get_git_output(["git", "branch", "--show-current"]) or "unknown"
+    
+    # Try to get repo name from remote origin
+    remote_url = _get_git_output(["git", "config", "--get", "remote.origin.url"])
+    repo_name = "unknown/unknown"
+    if remote_url:
+        # simplistic parsing for git@github.com:user/repo.git or https://github.com/user/repo.git
+        if "github.com" in remote_url:
+            parts = remote_url.replace(".git", "").split("/")
+            if len(parts) >= 2:
+                repo_name = f"{parts[-2].split(':')[-1]}/{parts[-1]}"
+
+    return {
+        "number": "local",
+        "title": f"Local Review: {head_branch}",
+        "body": "Local review session.",
+        "repo_name": repo_name,
+        "base_branch": "main",  # Default to main for local
+        "head_branch": head_branch,
+    }
+
+
 def _load_pr_info(event_path: Path) -> dict[str, str]:
     with event_path.open("r", encoding="utf-8") as fh:
         event = json.load(fh)
@@ -95,8 +131,13 @@ def _load_pr_info(event_path: Path) -> dict[str, str]:
     }
 
 
-def run_openhands_backend(settings: Settings, event_path: Path) -> str:
-    pr_info = _load_pr_info(event_path)
+def run_openhands_backend(settings: Settings, event_path: Path | None) -> str:
+    if event_path:
+        pr_info = _load_pr_info(event_path)
+    else:
+        logger.info("No event path provided, using local git context.")
+        pr_info = _load_local_info()
+
     logger.info("Running OpenHands agent for PR #%s: %s", pr_info["number"], pr_info["title"])
 
     llm_config: dict[str, str] = {
@@ -127,17 +168,45 @@ def run_openhands_backend(settings: Settings, event_path: Path) -> str:
     return review_content.strip()
 
 
+def post_github_comment(review: str, pr_info: dict[str, str], token: str) -> None:
+    if not token:
+        logger.warning("No GITHUB_TOKEN provided, skipping comment posting.")
+        return
+
+    repo = pr_info["repo_name"]
+    issue_number = pr_info["number"]
+    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    data = {"body": review}
+
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        logger.info("Successfully posted review comment to PR #%s", issue_number)
+    except Exception as exc:
+        logger.error("Failed to post review comment: %s", exc)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Open PR Agent reviewer.")
     parser.add_argument(
         "--event-path",
         default=os.getenv("GITHUB_EVENT_PATH", ""),
-        help="Path to a pull_request event payload (required). Defaults to GITHUB_EVENT_PATH.",
+        help="Path to a pull_request event payload. Defaults to GITHUB_EVENT_PATH. If not provided, attempts to use local git context.",
     )
     parser.add_argument(
         "--output-path",
         default=os.getenv("AGENT_OUTPUT_PATH", "openhands-review.md"),
         help="Where to write the OpenHands review markdown (defaults to AGENT_OUTPUT_PATH or openhands-review.md).",
+    )
+    parser.add_argument(
+        "--github-token",
+        default=os.getenv("GITHUB_TOKEN", ""),
+        help="GitHub token for posting comments (optional). Defaults to GITHUB_TOKEN.",
     )
     args = parser.parse_args()
 
@@ -147,9 +216,11 @@ def main() -> None:
         print(f"Failed to load settings: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    event_path = Path(args.event_path)
-    if not event_path.is_file():
-        raise SystemExit("OpenHands reviewer requires --event-path or GITHUB_EVENT_PATH pointing to a pull_request payload.")
+    event_path = None
+    if args.event_path:
+        event_path = Path(args.event_path)
+        if not event_path.is_file():
+            raise SystemExit(f"Provided event path '{args.event_path}' does not exist.")
 
     review = run_openhands_backend(settings, event_path)
 
@@ -159,6 +230,13 @@ def main() -> None:
         raise SystemExit(f"Failed to write agent output to {args.output_path}: {exc}") from exc
 
     print(f"OpenHands review written to {args.output_path}")
+
+    if args.github_token:
+        if event_path:
+            pr_info = _load_pr_info(event_path)
+            post_github_comment(review, pr_info, args.github_token)
+        else:
+            logger.warning("Cannot post comment without event payload (local mode).")
 
 
 if __name__ == "__main__":
