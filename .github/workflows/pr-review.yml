@@ -22,4 +22,3 @@ jobs:
           openai_base_url: ${{ vars.OPENAI_BASE_URL }}
           openai_model: ${{ vars.OPENAI_MODEL }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          allow_approvals: ${{ vars.OPEN_PR_AGENT_ALLOW_APPROVALS || 'false' }}

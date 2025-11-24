@@ -9,10 +9,13 @@ FOSS AI PR review agent
    - `OPENAI_BASE_URL`: HTTPS endpoint for your custom model gateway.
    - `OPENAI_MODEL`: Model identifier (e.g. `gpt-4o-mini`).
    - `OPENAI_API_KEY`: API token that grants access to the gateway.
-3. (Optional) Set `OPEN_PR_AGENT_BASE_REF` or pass `--base-ref <git ref>` if you need to diff against something other than `origin/main`.
-4. Run the reviewer: `uv run python main.py` (add `--base-ref` if desired).
+3. Run the reviewer:
+   - **Locally**: `uv run main.py`
+     - This will infer the PR information from your local git repository (current branch vs main).
+   - **With Event Payload**: `uv run main.py --event-path <pull_request.json>`
+     - Useful for reproducing GitHub Actions behavior or testing specific event payloads.
 
-The script gathers `git diff origin/main`, creates an `OpenAIProvider` using your base URL + key, and feeds the diff to a Pydantic AI agent configured to surface review feedback. Any missing env var or git failure causes the run to exit with a helpful error.
+The script launches the OpenHands agent so it can explore the repository, then writes the raw Markdown review summary directly to the specified file (default `openhands-review.md`). If you provide `--github-token <token>` (and a valid event path), it will also post the review as a comment on the PR.
 
 ## GitHub Action
 
@@ -33,19 +36,15 @@ jobs:
           openai_base_url: ${{ vars.OPENAI_BASE_URL }}
           openai_model: ${{ vars.OPENAI_MODEL }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          allow_approvals: false # Set true only if the provided token is allowed to approve PRs
+          agent_output_path: review.md
 ```
 
 Key inputs:
 
 - `openai_base_url`, `openai_model`, `openai_api_key` (required): connection information for your OpenAI-compatible endpoint.
-- `github_token` (optional): defaults to the workflow `GITHUB_TOKEN`, override when using a PAT/GitHub App.
-- `base_ref` (optional): override the default `origin/<PR base>` comparison.
-- `allow_approvals` (optional): defaults to `false`, set to `true` only when the supplied token may approve reviews.
-- `agent_output_path` / `payload_output_path`: customize where the intermediate JSON artifacts are written.
+- `github_token` (optional): defaults to the workflow `GITHUB_TOKEN`. Provide a PAT/GitHub App token if you need to bypass the default permissions.
+- `agent_output_path`: customize where the Markdown review is written. The workflow prints the contents so you can inspect it in the logs.
 
-Outputs expose the generated review payload (`review-event`, `review-body`, and both file paths) so downstream steps can introspect results without re-reading the files.
+After generating the Markdown summary, the action posts it as a COMMENT review on the pull request if the `github_token` input is provided (default).
 
-A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation.
-
-> ℹ️ GitHub Actions tokens cannot approve PRs. By default the action downgrades an `APPROVE` decision to a comment and adds a note explaining why. Provide a PAT/GitHub App token via `github_token` and set `allow_approvals=true` if approvals should be forwarded.
+A ready-to-use validation workflow still lives at `.github/workflows/pr-review.yml`. It exercises the action on every PR update and remains a reference implementation. Use downstream steps or manual review to interpret the generated Markdown as needed. The reviewer automatically skips lock files and other generated artifacts—even if they change—to reduce noise from large, unimportant diffs.
