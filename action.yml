@@ -60,7 +60,7 @@ runs:
         fi
 
     - name: Setup uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v7
 
     - name: Run Open PR Agent
       id: run-agent
