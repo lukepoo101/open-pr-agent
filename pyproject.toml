@@ -8,6 +8,6 @@ dependencies = [
     "pydantic>=2.12.4",
     "pydantic-settings>=2.11.0",
     "requests>=2.31.0",
-    "openhands-sdk @ git+https://github.com/OpenHands/agent-sdk.git@main#subdirectory=openhands-sdk",
-    "openhands-tools @ git+https://github.com/OpenHands/agent-sdk.git@main#subdirectory=openhands-tools",
+    "openhands-sdk",
+    "openhands-tools",
 ]
